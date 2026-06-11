@@ -12,3 +12,5 @@ Logar com GitHub, escrever, salvar -> commit no repo -> deploy automatico.
 
 ## Deploy
 Cloudflare (Pages ou Workers Build): build command `npm run build`, output `dist`.
+
+<!-- cms enabled -->
