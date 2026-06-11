@@ -1,0 +1,7 @@
+{
+  "name": "gustavosouza-blog",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "node src/build.mjs" },
+  "dependencies": { "marked": "^12.0.0", "gray-matter": "^4.0.3" }
+}

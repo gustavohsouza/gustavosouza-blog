@@ -1,0 +1,28 @@
+backend:
+  name: github
+  repo: __OWNER__/__REPO__
+  branch: main
+  base_url: __AUTH_URL__
+media_folder: "public/wp-content/uploads"
+public_folder: "/wp-content/uploads"
+site_domain: gustavosouza.blog
+display_url: https://gustavosouza.blog
+logo_url: /favicon.svg
+collections:
+  - name: posts
+    label: Posts
+    label_singular: Post
+    folder: content/posts
+    create: true
+    extension: md
+    format: yaml-frontmatter
+    slug: "{{fields.slug}}"
+    identifier_field: title
+    summary: "{{title}}"
+    sortable_fields: [date, title]
+    fields:
+      - { label: "Title", name: "title", widget: "string" }
+      - { label: "Date", name: "date", widget: "datetime", date_format: "YYYY-MM-DD", time_format: false, picker_utc: true }
+      - { label: "Slug (URL)", name: "slug", widget: "string", hint: "vira gustavosouza.blog/SLUG/" }
+      - { label: "Featured image", name: "thumbnail", widget: "image", required: false }
+      - { label: "Body", name: "body", widget: "markdown" }
