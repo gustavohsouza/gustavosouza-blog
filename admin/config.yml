@@ -1,8 +1,8 @@
 backend:
   name: github
-  repo: __OWNER__/__REPO__
+  repo: gustavohsouza/gustavosouza-blog
   branch: main
-  base_url: __AUTH_URL__
+  base_url: https://gustavosouza.blog/oauth
 media_folder: "public/wp-content/uploads"
 public_folder: "/wp-content/uploads"
 site_domain: gustavosouza.blog
