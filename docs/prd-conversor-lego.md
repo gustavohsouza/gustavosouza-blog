@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | Autor | Gustavo Souza (g@saasholic.com) |
-| Status | Decisões principais tomadas em 2026-06-12 — ver §10 (restam poucas questões abertas) |
+| Status | **v1, v2 e v3 implementadas** (`brickify/` — apps mosaic, studio e imagine), verificadas em navegador. v4 não iniciada. Decisões em §10 |
 | Data | 2026-06-12 |
 | Codinome provisório | **Brickify** (nome final em aberto — ver §10) |
 
