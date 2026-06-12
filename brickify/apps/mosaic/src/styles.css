@@ -1,0 +1,127 @@
+:root {
+  color-scheme: dark;
+  --bg: #0d0f12;
+  --panel: #16191f;
+  --border: #2a2f3a;
+  --text: #e8eaf0;
+  --muted: #9aa3b2;
+  --accent: #f6c945;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.app { max-width: 1240px; margin: 0 auto; padding: 24px 20px 60px; }
+
+header h1 { margin: 0; font-size: 28px; letter-spacing: -0.5px; }
+.accent { color: var(--accent); }
+.tagline { color: var(--muted); margin-top: 6px; max-width: 640px; }
+
+.drop {
+  display: block;
+  margin: 40px auto;
+  max-width: 560px;
+  padding: 70px 30px;
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  text-align: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.drop:hover { border-color: var(--accent); }
+.drop strong { color: var(--text); }
+
+.grid {
+  display: grid;
+  grid-template-columns: 340px 1fr 380px;
+  gap: 16px;
+  margin-top: 20px;
+  align-items: start;
+}
+@media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 18px 0 8px; }
+.panel h2:first-child { margin-top: 0; }
+
+.crop { width: 100%; border-radius: 8px; cursor: grab; touch-action: none; display: block; }
+.crop:active { cursor: grabbing; }
+
+.row { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.row input[type='range'] { flex: 1; accent-color: var(--accent); }
+.row input[type='number'] { width: 64px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 4px 6px; }
+.row select { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 5px 8px; flex: 1; }
+
+.toggles { display: flex; gap: 6px; flex-wrap: wrap; }
+.toggles button {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.toggles button.on { border-color: var(--accent); color: var(--accent); background: rgba(246, 201, 69, 0.08); }
+
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); margin: 10px 0; cursor: pointer; }
+.check input { accent-color: var(--accent); margin-top: 2px; }
+.check.disabled { opacity: 0.45; }
+
+button.ghost {
+  margin-top: 8px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.preview-panel { text-align: center; }
+.preview { max-width: 100%; border-radius: 8px; image-rendering: pixelated; }
+.stats { color: var(--muted); font-size: 14px; }
+.stats strong { color: var(--accent); font-size: 16px; }
+.mult { margin-left: 12px; font-size: 12px; }
+.mult input { width: 52px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 2px 4px; margin-left: 4px; }
+
+.downloads { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.downloads button {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.downloads button:hover { border-color: var(--accent); }
+
+.hint { color: var(--muted); font-size: 12px; }
+
+details { margin-top: 14px; }
+summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+
+.links { max-height: 220px; overflow-y: auto; padding-left: 18px; font-size: 13px; }
+.links a { color: #7db4ff; text-decoration: none; }
+.links a:hover { text-decoration: underline; }
+
+.bom { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+.bom th, .bom td { padding: 5px 6px; border-bottom: 1px solid var(--border); text-align: left; }
+.bom .num { text-align: right; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.25); }
+
+footer { margin-top: 40px; color: var(--muted); font-size: 11px; text-align: center; }
