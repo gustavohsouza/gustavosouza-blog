@@ -1,0 +1,17 @@
+{
+  "name": "brickify",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "npm run test -w @brickify/core",
+    "build": "npm run build -w @brickify/mosaic && npm run build -w @brickify/studio && npm run build -w @brickify/imagine",
+    "dev:mosaic": "npm run dev -w @brickify/mosaic",
+    "dev:studio": "npm run dev -w @brickify/studio",
+    "dev:imagine": "npm run dev -w @brickify/imagine"
+  }
+}
