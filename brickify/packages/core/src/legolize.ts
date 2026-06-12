@@ -1,16 +1,22 @@
-import type { LegolizeResult, Placement3D, VoxelGrid } from './types.js';
+import type { BrickColor, LegolizeResult, Placement3D, VoxelGrid } from './types.js';
 import { bricksForProfile, type PieceProfile } from './parts.js';
 import { buildBom } from './bom.js';
+import { nearestIndex, rgbToLab, withLab } from './colors.js';
 
 export interface LegolizeOptions {
   profile: PieceProfile;
-  /** Single color for the whole build (v2 MVP color mode). */
+  /** Fallback/single color for the build (used where no sampled color exists). */
   colorId: string;
   /**
    * Drop vertical support columns to stud-connect floating sections to the
    * rest of the build (standard MOC practice for hollow/curved shapes).
    */
   autoConnect?: boolean;
+  /**
+   * When the grid carries sampled colors (grid.rgb), quantize them to this
+   * palette and build in color; bricks never span two colors.
+   */
+  palette?: BrickColor[];
 }
 
 /**
@@ -58,6 +64,12 @@ function legolizeOnce(grid: VoxelGrid, opts: LegolizeOptions): LegolizeResult {
   const used = new Uint8Array(nx * ny * nz);
   const placements: Placement3D[] = [];
 
+  // Per-voxel palette index (-1 = fallback color). Interior voxels with no
+  // sampled color inherit the nearest assigned color in their layer scan
+  // order implicitly via the fallback, which stays hidden inside the build.
+  const voxColor = quantizeVoxelColors(grid, opts);
+  const colorIdOf = (ci: number) => (ci >= 0 && opts.palette ? opts.palette[ci].id : opts.colorId);
+
   for (let y = 0; y < ny; y++) {
     const cands = y % 2 === 0 ? alongX : alongZ;
     // Shift the scan phase on odd layers so seams stagger even in uniform rows.
@@ -68,13 +80,14 @@ function legolizeOnce(grid: VoxelGrid, opts: LegolizeOptions): LegolizeResult {
         const x = (xx + phase) % nx;
         const i = idx(x, y, z);
         if (data[i] !== 1 || used[i]) continue;
+        const ci = voxColor ? voxColor[i] : -1;
         for (const c of cands) {
           if (x + c.sx > nx || z + c.sz > nz) continue;
-          if (!fits(data, used, nx, nz, x, y, z, c.sx, c.sz, idx)) continue;
+          if (!fits(data, used, nx, nz, x, y, z, c.sx, c.sz, idx, voxColor, ci)) continue;
           for (let dz = 0; dz < c.sz; dz++) {
             for (let dx = 0; dx < c.sx; dx++) used[idx(x + dx, y, z + dz)] = 1;
           }
-          placements.push({ partId: c.partId, colorId: opts.colorId, x, z, layer: y, sx: c.sx, sz: c.sz });
+          placements.push({ partId: c.partId, colorId: colorIdOf(ci), x, z, layer: y, sx: c.sx, sz: c.sz });
           break; // 1x1 is always in the candidate list
         }
       }
@@ -103,14 +116,31 @@ function fits(
   sx: number,
   sz: number,
   idx: (x: number, y: number, z: number) => number,
+  voxColor: Int16Array | null,
+  color: number,
 ): boolean {
   for (let dz = 0; dz < sz; dz++) {
     for (let dx = 0; dx < sx; dx++) {
       const i = idx(x + dx, y, z + dz);
       if (data[i] !== 1 || used[i]) return false;
+      if (voxColor && voxColor[i] !== color) return false;
     }
   }
   return true;
+}
+
+/** Quantize sampled voxel colors to the palette; null when running single-color. */
+function quantizeVoxelColors(grid: VoxelGrid, opts: LegolizeOptions): Int16Array | null {
+  if (!grid.rgb || !opts.palette || opts.palette.length === 0) return null;
+  const lab = withLab(opts.palette);
+  const out = new Int16Array(grid.data.length).fill(-1);
+  for (let i = 0; i < grid.data.length; i++) {
+    if (grid.data[i] !== 1) continue;
+    const r = grid.rgb[i * 3];
+    if (r < 0) continue; // unsampled (interior / support) -> fallback color
+    out[i] = nearestIndex(rgbToLab(r, grid.rgb[i * 3 + 1], grid.rgb[i * 3 + 2]), lab);
+  }
+  return out;
 }
 
 /** Union-find over bricks; an edge = stud connection between vertically adjacent overlapping bricks. */
@@ -158,7 +188,7 @@ function addSupports(grid: VoxelGrid, placements: Placement3D[]): VoxelGrid | nu
       added = true;
     }
   }
-  return added ? { nx, ny, nz, data } : null;
+  return added ? { nx, ny, nz, data, rgb: grid.rgb } : null;
 }
 
 function componentLabels(placements: Placement3D[]): number[] {

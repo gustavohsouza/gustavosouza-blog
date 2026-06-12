@@ -10,7 +10,7 @@ import {
   type LegolizeResult,
   type PieceProfile,
 } from '@brickify/core';
-import { BrickViewer, buildManual3D, loadMeshFile, parseGlbBuffer } from '@brickify/brick3d';
+import { BrickViewer, buildManual3D, loadMeshDetailed, parseGlbDetailed, type LoadedMesh } from '@brickify/brick3d';
 import { imageTo3d, monthlyUsage, MONTHLY_CAP } from './meshy.js';
 import { MeshPreview } from './MeshPreview.js';
 
@@ -41,13 +41,14 @@ export default function App() {
   const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem('brickify-meshy-base') ?? '');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [triangles, setTriangles] = useState<Float32Array | null>(null);
+  const [mesh, setMesh] = useState<LoadedMesh | null>(null);
 
   // brick stage state
   const [targetStuds, setTargetStuds] = useState(32);
   const [profile, setProfile] = useState<PieceProfile>('standard');
   const [hollowOn, setHollowOn] = useState(true);
   const [colorId, setColorId] = useState('yellow');
+  const [colorMode, setColorMode] = useState<'model' | 'single'>('single');
   const [priceMult, setPriceMult] = useState(1);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<LegolizeResult | null>(null);
@@ -76,7 +77,9 @@ export default function App() {
         baseUrl: baseUrl || undefined,
         onProgress: (p) => setProgress(p.progress),
       });
-      setTriangles(await parseGlbBuffer(glb));
+      const loaded = await parseGlbDetailed(glb);
+      setMesh(loaded);
+      setColorMode(loaded.colors ? 'model' : 'single');
       setStage('approve');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -87,7 +90,9 @@ export default function App() {
   const onMeshFile = async (file: File) => {
     setError(null);
     try {
-      setTriangles(await loadMeshFile(file));
+      const loaded = await loadMeshDetailed(file);
+      setMesh(loaded);
+      setColorMode(loaded.colors ? 'model' : 'single');
       setFileName(file.name.replace(/\.[^.]+$/, '') || 'creation');
       setStage('approve');
     } catch (e) {
@@ -96,14 +101,18 @@ export default function App() {
   };
 
   const convert = () => {
-    if (!triangles) return;
+    if (!mesh) return;
     setBusy(true);
     setResult(null);
     setTimeout(() => {
       try {
-        let grid = voxelize(triangles, { targetStuds });
+        const useModelColors = colorMode === 'model' && !!mesh.colors;
+        let grid = voxelize(mesh.positions, {
+          targetStuds,
+          colors: useModelColors ? mesh.colors! : undefined,
+        });
         if (hollowOn) grid = hollowGrid(grid, 2);
-        setResult(legolize(grid, { profile, colorId, autoConnect: true }));
+        setResult(legolize(grid, { profile, colorId, autoConnect: true, palette: useModelColors ? PALETTE : undefined }));
         setMaxLayer(Infinity);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -227,10 +236,10 @@ export default function App() {
         </section>
       )}
 
-      {stage === 'approve' && triangles && (
+      {stage === 'approve' && mesh && (
         <section className="panel" style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
           <h2>Does this look right?</h2>
-          <MeshPreview triangles={triangles} width={520} height={380} />
+          <MeshPreview triangles={mesh.positions} width={520} height={380} />
           <p className="hint">Drag to rotate. AI generations aren't perfect — regenerate if it's off.</p>
           <div className="downloads" style={{ marginTop: 10 }}>
             <button className="cta" onClick={() => setStage('brick')}>
@@ -238,7 +247,7 @@ export default function App() {
             </button>
             <button
               onClick={() => {
-                setTriangles(null);
+                setMesh(null);
                 setResult(null);
                 setStage('input');
               }}
@@ -249,7 +258,7 @@ export default function App() {
         </section>
       )}
 
-      {stage === 'brick' && triangles && (
+      {stage === 'brick' && mesh && (
         <div className="grid">
           <section className="panel">
             <h2>Size</h2>
@@ -271,6 +280,19 @@ export default function App() {
               Hollow interior
             </label>
             <h2>Color</h2>
+            <div className="toggles">
+              <button
+                className={colorMode === 'model' ? 'on' : ''}
+                disabled={!mesh.colors}
+                title={mesh.colors ? 'Use the colors found in the model' : 'This model has no color information'}
+                onClick={() => setColorMode('model')}
+              >
+                🎨 From model
+              </button>
+              <button className={colorMode === 'single' ? 'on' : ''} onClick={() => setColorMode('single')}>
+                ⬤ Single color
+              </button>
+            </div>
             <div className="swatches">
               {PALETTE.map((c) => (
                 <button

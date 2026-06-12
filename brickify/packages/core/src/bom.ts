@@ -25,6 +25,32 @@ export function buildBom(placements: Array<Pick<Placement2D | Placement3D, 'part
       totalUsd: unit * qty,
     });
   }
+  return finalize(lines);
+}
+
+/** Append extra parts (e.g. baseplates) that are not stud placements. */
+export function addParts(bom: Bom, extras: Array<{ partId: string; colorId: string; qty: number }>): Bom {
+  const lines = [...bom.lines];
+  for (const e of extras) {
+    if (e.qty <= 0) continue;
+    const part = PART_BY_ID.get(e.partId);
+    const color = COLOR_BY_ID.get(e.colorId);
+    if (!part || !color) throw new Error(`Unknown part/color: ${e.partId}/${e.colorId}`);
+    const unit = unitPriceUsd(e.partId, e.colorId);
+    lines.push({
+      partId: e.partId,
+      partName: part.name,
+      colorId: e.colorId,
+      colorName: color.name,
+      qty: e.qty,
+      unitPriceUsd: unit,
+      totalUsd: unit * e.qty,
+    });
+  }
+  return finalize(lines);
+}
+
+function finalize(lines: BomLine[]): Bom {
   lines.sort((a, b) => a.colorName.localeCompare(b.colorName) || a.partName.localeCompare(b.partName));
   return {
     lines,

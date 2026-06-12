@@ -36,6 +36,8 @@ export const PARTS: Part[] = [
   { id: '3001', name: 'Brick 2 x 4', category: 'brick', w: 2, l: 4, basePriceUsd: 0.034 },
   { id: '2456', name: 'Brick 2 x 6', category: 'brick', w: 2, l: 6, basePriceUsd: 0.048 },
   { id: '3007', name: 'Brick 2 x 8', category: 'brick', w: 2, l: 8, basePriceUsd: 0.062 },
+  // Mounting surface for mosaics
+  { id: '3811', name: 'Baseplate 32 x 32', category: 'baseplate', w: 32, l: 32, basePriceUsd: 2.2 },
 ];
 
 export const PART_BY_ID: ReadonlyMap<string, Part> = new Map(PARTS.map((p) => [p.id, p]));

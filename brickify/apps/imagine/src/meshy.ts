@@ -58,7 +58,7 @@ export async function imageTo3d(imageDataUrl: string, opts: MeshyOptions): Promi
     body: JSON.stringify({
       image_url: imageDataUrl,
       should_remesh: true,
-      should_texture: false,
+      should_texture: true,
       enable_pbr: false,
     }),
   }).catch((e) => {

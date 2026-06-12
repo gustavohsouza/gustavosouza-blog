@@ -6,6 +6,12 @@ export const BRICK_ASPECT = 1.2;
 export interface VoxelizeOptions {
   /** Target size in studs along the model's longest horizontal axis (or in bricks if vertical). */
   targetStuds: number;
+  /**
+   * Per-triangle sRGB color (3 floats 0..255 per triangle). When provided,
+   * surface voxels carry the average color of the triangles that touched
+   * them, enabling colored builds downstream.
+   */
+  colors?: Float32Array;
 }
 
 /**
@@ -46,15 +52,44 @@ export function voxelize(positions: Float32Array, opts: VoxelizeOptions): VoxelG
   const SURFACE = 1, EXTERIOR = 2;
   const idx = (x: number, y: number, z: number) => x + z * nx + y * nx * nz;
 
+  const triColors = opts.colors;
+  if (triColors && triColors.length !== positions.length / 3) {
+    throw new Error('colors must have 3 floats per triangle');
+  }
+  // Majority vote per voxel: keep the color of the triangle that contributed
+  // the most samples (averaging would smear edge voxels into muddy colors).
+  // A triangle's samples into a voxel are contiguous, so a running count of
+  // the current triangle's streak per voxel is enough.
+  const colBest = triColors ? new Float32Array(nx * ny * nz * 3).fill(-1) : null;
+  const bestCount = triColors ? new Uint32Array(nx * ny * nz) : null;
+  const runTri = triColors ? new Int32Array(nx * ny * nz).fill(-1) : null;
+  const runCount = triColors ? new Uint32Array(nx * ny * nz) : null;
+
   // 1) Mark surface voxels by sampling each triangle at sub-voxel spacing.
   const step = Math.min(s, hy) * 0.5;
+  let curTri = 0;
   const mark = (px: number, py: number, pz: number) => {
     const x = Math.min(nx - 1, Math.max(0, Math.floor((px - minX) / s)));
     const y = Math.min(ny - 1, Math.max(0, Math.floor((py - minY) / hy)));
     const z = Math.min(nz - 1, Math.max(0, Math.floor((pz - minZ) / s)));
-    data[idx(x, y, z)] = SURFACE;
+    const i = idx(x, y, z);
+    data[i] = SURFACE;
+    if (colBest && bestCount && runTri && runCount && triColors) {
+      if (runTri[i] !== curTri) {
+        runTri[i] = curTri;
+        runCount[i] = 0;
+      }
+      runCount[i]++;
+      if (runCount[i] > bestCount[i]) {
+        bestCount[i] = runCount[i];
+        colBest[i * 3] = triColors[curTri * 3];
+        colBest[i * 3 + 1] = triColors[curTri * 3 + 1];
+        colBest[i * 3 + 2] = triColors[curTri * 3 + 2];
+      }
+    }
   };
   for (let t = 0; t < positions.length; t += 9) {
+    curTri = t / 9;
     const ax = positions[t], ay = positions[t + 1], az = positions[t + 2];
     const bx = positions[t + 3], by = positions[t + 4], bz = positions[t + 5];
     const cx = positions[t + 6], cy = positions[t + 7], cz = positions[t + 8];
@@ -111,7 +146,8 @@ export function voxelize(positions: Float32Array, opts: VoxelizeOptions): VoxelG
   // 3) Solid = surface + enclosed interior.
   const out = new Uint8Array(nx * ny * nz);
   for (let i = 0; i < data.length; i++) out[i] = data[i] === EXTERIOR ? 0 : 1;
-  return { nx, ny, nz, data: out };
+
+  return { nx, ny, nz, data: out, rgb: colBest ?? undefined };
 }
 
 /**
@@ -163,5 +199,5 @@ export function hollow(grid: VoxelGrid, shell = 1): VoxelGrid {
   }
   const out = new Uint8Array(nx * ny * nz);
   for (let i = 0; i < data.length; i++) out[i] = data[i] === 1 && dist[i] !== -1 ? 1 : 0;
-  return { nx, ny, nz, data: out };
+  return { nx, ny, nz, data: out, rgb: grid.rgb };
 }

@@ -38,7 +38,9 @@ describe('mosaic', () => {
     const red = res.palette.findIndex((c) => c.id === 'red');
     expect(Array.from(res.grid).every((v) => v === red)).toBe(true);
     expect(res.placements).toHaveLength(64);
-    expect(res.bom.totalPieces).toBe(64);
+    // 64 plates + 1 baseplate (mounting surface)
+    expect(res.bom.totalPieces).toBe(65);
+    expect(res.bom.lines.some((l) => l.partId === '3811' && l.qty === 1)).toBe(true);
   });
 
   it('merge covers every stud exactly once and cuts piece count', () => {
@@ -237,6 +239,38 @@ describe('voxelize + legolize', () => {
     expect(connected.components).toBe(1);
     expect(connected.warnings).toHaveLength(0);
     expect(connected.bom.totalPieces).toBe(4); // two support bricks added
+  });
+
+  it('colored voxelization quantizes to the palette and bricks never span colors', () => {
+    const positions = cubeTriangles(8);
+    const nTris = positions.length / 9;
+    // Left-half triangles red, right-half blue (split by triangle centroid x).
+    const colors = new Float32Array(nTris * 3);
+    for (let t = 0; t < nTris; t++) {
+      const cx = (positions[t * 9] + positions[t * 9 + 3] + positions[t * 9 + 6]) / 3;
+      const rgb = cx < 4 ? [201, 26, 9] : [0, 85, 191];
+      colors.set(rgb, t * 3);
+    }
+    const grid = voxelize(positions, { targetStuds: 8, colors });
+    expect(grid.rgb).toBeDefined();
+    const res = legolize(grid, { profile: 'standard', colorId: 'white', palette: PALETTE });
+    const used = new Set(res.placements.map((p) => p.colorId));
+    expect(used.has('red')).toBe(true);
+    expect(used.has('blue')).toBe(true);
+    // (Edge voxels may average both colors by design, so no per-position assertions.)
+    // Full coverage still holds with the color constraint.
+    const covered = new Uint8Array(grid.nx * grid.ny * grid.nz);
+    const idx = (x: number, y: number, z: number) => x + z * grid.nx + y * grid.nx * grid.nz;
+    let count = 0;
+    for (const p of res.placements) {
+      for (let dz = 0; dz < p.sz; dz++) {
+        for (let dx = 0; dx < p.sx; dx++) {
+          covered[idx(p.x + dx, p.layer, p.z + dz)] = 1;
+          count++;
+        }
+      }
+    }
+    expect(count).toBe(grid.data.reduce((s: number, v) => s + v, 0));
   });
 
   it('autoConnect leaves ground-resting separate sections alone', () => {

@@ -17,7 +17,7 @@ export interface BrickColor {
   tier: ColorTier;
 }
 
-export type PartCategory = 'plate' | 'roundPlate' | 'tile' | 'brick';
+export type PartCategory = 'plate' | 'roundPlate' | 'tile' | 'brick' | 'baseplate';
 
 export interface Part {
   /** LEGO design id (same numbering used by compatible manufacturers). */
@@ -86,6 +86,11 @@ export interface VoxelGrid {
   nz: number;
   /** x + z*nx + y*nx*nz, 1 = solid. */
   data: Uint8Array;
+  /**
+   * Optional sampled surface color per voxel (3 floats 0..255, same indexing
+   * as `data`). r = -1 marks voxels with no sample (e.g. enclosed interior).
+   */
+  rgb?: Float32Array;
 }
 
 export interface LegolizeResult {

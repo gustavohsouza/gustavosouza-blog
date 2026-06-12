@@ -11,7 +11,7 @@ import {
   type LegolizeResult,
   type PieceProfile,
 } from '@brickify/core';
-import { BrickViewer, buildManual3D, loadMeshFile } from '@brickify/brick3d';
+import { BrickViewer, buildManual3D, loadMeshDetailed, type LoadedMesh } from '@brickify/brick3d';
 
 function download(name: string, content: string | Blob, type = 'text/plain'): void {
   const blob = content instanceof Blob ? content : new Blob([content], { type });
@@ -30,14 +30,16 @@ const PROFILES: Array<{ id: PieceProfile; label: string; hint: string }> = [
 ];
 
 export default function App() {
-  const [triangles, setTriangles] = useState<Float32Array | null>(null);
+  const [mesh, setMesh] = useState<LoadedMesh | null>(null);
   const [fileName, setFileName] = useState('model');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [targetStuds, setTargetStuds] = useState(32);
   const [profile, setProfile] = useState<PieceProfile>('standard');
   const [hollowOn, setHollowOn] = useState(true);
   const [colorId, setColorId] = useState('red');
+  const [colorMode, setColorMode] = useState<'model' | 'single'>('single');
   const [priceMult, setPriceMult] = useState(1);
+  const [budget, setBudget] = useState(0); // 0 = no ceiling
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<LegolizeResult | null>(null);
   const [maxLayer, setMaxLayer] = useState<number>(Infinity);
@@ -46,26 +48,50 @@ export default function App() {
     setLoadError(null);
     setResult(null);
     try {
-      setTriangles(await loadMeshFile(file));
+      const loaded = await loadMeshDetailed(file);
+      setMesh(loaded);
+      setColorMode(loaded.colors ? 'model' : 'single');
       setFileName(file.name.replace(/\.[^.]+$/, '') || 'model');
     } catch (e) {
-      setTriangles(null);
+      setMesh(null);
       setLoadError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  const convert = () => {
-    if (!triangles) return;
+  const runPipeline = (size: number): LegolizeResult => {
+    const useModelColors = colorMode === 'model' && !!mesh!.colors;
+    let grid = voxelize(mesh!.positions, {
+      targetStuds: size,
+      colors: useModelColors ? mesh!.colors! : undefined,
+    });
+    // Shell of 2 bricks: thick enough that curved walls keep overlapping
+    // (and interlocking) between layers; 1-thick shells fragment on spheres.
+    if (hollowOn) grid = hollowGrid(grid, 2);
+    return legolize(grid, {
+      profile,
+      colorId,
+      autoConnect: true,
+      palette: useModelColors ? PALETTE : undefined,
+    });
+  };
+
+  const convert = (fitBudget = false) => {
+    if (!mesh) return;
     setBusy(true);
     setResult(null);
     // Let the spinner paint before the heavy work starts.
     setTimeout(() => {
       try {
-        let grid = voxelize(triangles, { targetStuds });
-        // Shell of 2 bricks: thick enough that curved walls keep overlapping
-        // (and interlocking) between layers; 1-thick shells fragment on spheres.
-        if (hollowOn) grid = hollowGrid(grid, 2);
-        const res = legolize(grid, { profile, colorId, autoConnect: true });
+        let size = targetStuds;
+        let res = runPipeline(size);
+        if (fitBudget && budget > 0) {
+          // Walk the size down until the estimate fits the ceiling.
+          while (size > 8 && res.bom.totalUsd * priceMult > budget) {
+            size = Math.max(8, size - 4);
+            res = runPipeline(size);
+          }
+          setTargetStuds(size);
+        }
         setResult(res);
         setMaxLayer(Infinity);
       } catch (e) {
@@ -97,7 +123,7 @@ export default function App() {
         </p>
       </header>
 
-      {!triangles && (
+      {!mesh && (
         <label
           className="drop"
           onDragOver={(e) => e.preventDefault()}
@@ -118,14 +144,14 @@ export default function App() {
         </label>
       )}
 
-      {triangles && (
+      {mesh && (
         <div className="grid">
           <section className="panel">
             <h2>1 · Model</h2>
             <p className="hint">
-              {fileName} — {(triangles.length / 9).toLocaleString()} triangles
+              {fileName} — {(mesh.positions.length / 9).toLocaleString()} triangles
             </p>
-            <button className="ghost" onClick={() => { setTriangles(null); setResult(null); }}>
+            <button className="ghost" onClick={() => { setMesh(null); setResult(null); }}>
               Use another model
             </button>
 
@@ -140,6 +166,22 @@ export default function App() {
                 onChange={(e) => setTargetStuds(Number(e.target.value))}
               />
               <span className="hint">{targetStuds} studs</span>
+            </label>
+            <label className="row">
+              Budget $
+              <input
+                type="number"
+                min={0}
+                step={5}
+                value={budget || ''}
+                placeholder="none"
+                onChange={(e) => setBudget(Math.max(0, Number(e.target.value) || 0))}
+              />
+              {budget > 0 && (
+                <button className="ghost" style={{ marginTop: 0 }} disabled={busy} onClick={() => convert(true)}>
+                  Fit to budget
+                </button>
+              )}
             </label>
 
             <h2>3 · Pieces</h2>
@@ -157,6 +199,25 @@ export default function App() {
             </label>
 
             <h2>4 · Color</h2>
+            <div className="toggles">
+              <button
+                className={colorMode === 'model' ? 'on' : ''}
+                disabled={!mesh.colors}
+                title={mesh.colors ? 'Use the colors found in the file' : 'This file has no color information'}
+                onClick={() => setColorMode('model')}
+              >
+                🎨 From model
+              </button>
+              <button className={colorMode === 'single' ? 'on' : ''} onClick={() => setColorMode('single')}>
+                ⬤ Single color
+              </button>
+            </div>
+            {colorMode === 'model' && (
+              <p className="hint">
+                Model colors are matched to the closest of the {PALETTE.length} brick colors. The swatch below
+                is used for hidden interior pieces.
+              </p>
+            )}
             <div className="swatches">
               {PALETTE.map((c) => (
                 <button
@@ -169,7 +230,7 @@ export default function App() {
               ))}
             </div>
 
-            <button className="cta" onClick={convert} disabled={busy}>
+            <button className="cta" onClick={() => convert()} disabled={busy}>
               {busy ? 'Converting…' : result ? 'Convert again' : 'Convert to bricks'}
             </button>
           </section>
@@ -219,7 +280,7 @@ export default function App() {
               </>
             )}
             {!result && !busy && <p className="hint">Configure on the left and hit “Convert to bricks”.</p>}
-            {loadError && triangles && <p className="error">{loadError}</p>}
+            {loadError && mesh && <p className="error">{loadError}</p>}
           </section>
 
           <section className="panel">

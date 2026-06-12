@@ -1,7 +1,7 @@
 import type { BrickColor, MosaicResult, Placement2D } from './types.js';
 import { withLab, nearestIndex, rgbToLab, type LabColor } from './colors.js';
 import { partsOf } from './parts.js';
-import { buildBom } from './bom.js';
+import { addParts, buildBom } from './bom.js';
 
 export interface MosaicOptions {
   /** Mosaic size in studs. */
@@ -23,6 +23,8 @@ export interface MosaicOptions {
    * only; round plates and tiles are always 1x1).
    */
   optimizeCost: boolean;
+  /** Add 32x32 baseplates to the BOM as the mounting surface (default true). */
+  includeBaseplates?: boolean;
 }
 
 /**
@@ -44,7 +46,13 @@ export function buildMosaic(rgba: Uint8ClampedArray, opts: MosaicOptions): Mosai
       ? mergePlates(grid, w, h, opts.palette)
       : onesPlacements(grid, w, h, opts.palette, opts.piece);
 
-  return { width: w, height: h, grid, palette: opts.palette, placements, bom: buildBom(placements) };
+  let bom = buildBom(placements);
+  if (opts.includeBaseplates !== false) {
+    bom = addParts(bom, [
+      { partId: '3811', colorId: 'light-bluish-gray', qty: Math.ceil(w / 32) * Math.ceil(h / 32) },
+    ]);
+  }
+  return { width: w, height: h, grid, palette: opts.palette, placements, bom };
 }
 
 function adjust(rgba: Uint8ClampedArray, opts: MosaicOptions): Float32Array {

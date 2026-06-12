@@ -13,9 +13,9 @@ your browser; there is no server.
 
 | App | What it does |
 |---|---|
-| **Mosaic** (`apps/mosaic`) — v1 | 2D image → brick mosaic. Crop/zoom, sizes up to 128×128 studs, round plates / square plates / tiles toggle, palettes, dithering, cost-optimizing plate merge, BOM, BrickLink XML, CSV, AliExpress links and a printable LEGO-Art-style PDF manual. |
-| **Studio** (`apps/studio`) — v2 | 3D model (STL/OBJ/GLB/GLTF) → brick set. Voxelization, brick-bonded layout with automatic internal supports, piece profiles (basic/standard/advanced), hollow interior, 38 colors, interactive 3D preview with layer step-through, `.ldr` export and a step-by-step PDF manual. |
-| **Imagine** (`apps/imagine`) — v3 | Photo/drawing → AI-generated 3D model (Meshy API, bring your own key) → approve the mesh → same brick pipeline as Studio. Includes a local monthly generation cap to protect your budget and a mesh-upload fallback. |
+| **Mosaic** (`apps/mosaic`) — v1 | 2D image → brick mosaic. Crop/zoom, sizes up to 128×128 studs, round plates / square plates / tiles toggle, palettes, dithering, cost-optimizing plate merge, BOM (incl. baseplates), BrickLink XML, CSV, AliExpress links and a printable LEGO-Art-style PDF manual. |
+| **Studio** (`apps/studio`) — v2 | 3D model (STL/OBJ/GLB/GLTF) → brick set. Voxelization, brick-bonded layout with automatic internal supports, piece profiles (basic/standard/advanced), hollow interior, color from the model (vertex colors / textures / materials, majority-vote per voxel) or single color, budget ceiling with fit-to-budget, interactive 3D preview with layer step-through, `.ldr` export and a step-by-step PDF manual. |
+| **Imagine** (`apps/imagine`) — v3 | Photo/drawing → AI-generated 3D model (Meshy API, bring your own key, textured) → approve the mesh → same brick pipeline as Studio, including model colors. Includes a local monthly generation cap to protect your budget and a mesh-upload fallback. |
 
 ## Packages
 
