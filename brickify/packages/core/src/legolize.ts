@@ -33,14 +33,17 @@ export function legolize(grid: VoxelGrid, opts: LegolizeOptions): LegolizeResult
     // Iteratively add support columns under floating sections until the
     // build is connected (or no further progress is possible).
     let current = grid;
-    for (let i = 0; i < 12; i++) {
-      const res = legolizeOnce(current, opts);
-      if (res.components <= 1) return res;
+    let res = legolizeOnce(current, opts);
+    for (let i = 0; i < 12 && res.components > 1; i++) {
       const next = addSupports(current, res.placements);
-      if (!next) return res; // no progress possible; keep the warning
+      if (!next) break; // remaining loose sections rest on the ground
       current = next;
+      res = legolizeOnce(current, opts);
     }
-    return legolizeOnce(current, opts);
+    // Ground-level "woven patches" (common at color boundaries) are fixed by
+    // re-tiling two same-color neighbors with a brick across the seam.
+    if (res.components > 1) res = stitchComponents(res, opts);
+    return res;
   }
   return legolizeOnce(grid, opts);
 }
@@ -147,6 +150,121 @@ function quantizeVoxelColors(grid: VoxelGrid, opts: LegolizeOptions): Int16Array
 function countComponents(placements: Placement3D[]): number {
   const labels = componentLabels(placements);
   return new Set(labels).size;
+}
+
+/**
+ * Connect loose components by re-tiling: pick a brick from the loose
+ * component and a side-adjacent same-layer same-color brick from another
+ * component, then cover their combined cells again with one brick forced
+ * across the seam. Coverage and colors are preserved exactly.
+ */
+function stitchComponents(res: LegolizeResult, opts: LegolizeOptions): LegolizeResult {
+  const placements = [...res.placements];
+  for (let round = 0; round < 24; round++) {
+    const labels = componentLabels(placements);
+    const comps = new Set(labels);
+    if (comps.size <= 1) break;
+    // Largest component is "main"; try to stitch any other into a different one.
+    const sizes = new Map<number, number>();
+    for (const l of labels) sizes.set(l, (sizes.get(l) ?? 0) + 1);
+    const main = [...sizes.entries()].sort((a, b) => b[1] - a[1])[0][0];
+
+    let stitched = false;
+    outer: for (let bi = 0; bi < placements.length && !stitched; bi++) {
+      if (labels[bi] === main) continue;
+      const b = placements[bi];
+      for (let ai = 0; ai < placements.length; ai++) {
+        if (labels[ai] !== main) continue;
+        const a = placements[ai];
+        if (a.layer !== b.layer || a.colorId !== b.colorId) continue;
+        const seam = sharedSeamCells(a, b);
+        if (!seam) continue;
+        const replacement = retileAcrossSeam(a, b, seam);
+        if (!replacement) continue;
+        const keep = placements.filter((_, i) => i !== ai && i !== bi);
+        placements.length = 0;
+        placements.push(...keep, ...replacement);
+        stitched = true;
+        break outer;
+      }
+    }
+    if (!stitched) break; // nothing stitchable (e.g. truly separate objects)
+  }
+
+  const components = countComponents(placements);
+  const warnings: string[] = [];
+  if (components > 1) {
+    warnings.push(
+      `Build has ${components} disconnected sections — some pieces are not attached to the rest. ` +
+        'Try a higher resolution, a solid (non-hollow) interior, or accept gluing the loose sections.',
+    );
+  }
+  return { placements, bom: buildBom(placements), grid: res.grid, components, warnings };
+}
+
+/** Adjacent cell pair (one in a, one in b) across a shared edge, or null. */
+function sharedSeamCells(a: Placement3D, b: Placement3D): { ax: number; az: number; bx: number; bz: number } | null {
+  // b to the right of a (or vice versa) along x
+  if (a.z < b.z + b.sz && b.z < a.z + a.sz) {
+    const z = Math.max(a.z, b.z);
+    if (a.x + a.sx === b.x) return { ax: b.x - 1, az: z, bx: b.x, bz: z };
+    if (b.x + b.sx === a.x) return { ax: a.x, az: z, bx: a.x - 1, bz: z };
+  }
+  // along z
+  if (a.x < b.x + b.sx && b.x < a.x + a.sx) {
+    const x = Math.max(a.x, b.x);
+    if (a.z + a.sz === b.z) return { ax: x, az: b.z - 1, bx: x, bz: b.z };
+    if (b.z + b.sz === a.z) return { ax: x, az: a.z, bx: x, bz: a.z - 1 };
+  }
+  return null;
+}
+
+/** Re-cover the union of two bricks with a 1x2 across the seam + greedy fill. */
+function retileAcrossSeam(
+  a: Placement3D,
+  b: Placement3D,
+  seam: { ax: number; az: number; bx: number; bz: number },
+): Placement3D[] | null {
+  const cells = new Set<string>();
+  for (const p of [a, b]) {
+    for (let dx = 0; dx < p.sx; dx++) {
+      for (let dz = 0; dz < p.sz; dz++) cells.add(`${p.x + dx},${p.z + dz}`);
+    }
+  }
+  const out: Placement3D[] = [];
+  const take = (x: number, z: number, sx: number, sz: number, partId: string) => {
+    for (let dx = 0; dx < sx; dx++) for (let dz = 0; dz < sz; dz++) cells.delete(`${x + dx},${z + dz}`);
+    out.push({ partId, colorId: a.colorId, x, z, layer: a.layer, sx, sz });
+  };
+
+  // The stitch: a 1x2 brick spanning both sides of the seam.
+  const alongX = seam.az === seam.bz;
+  const x0 = Math.min(seam.ax, seam.bx);
+  const z0 = Math.min(seam.az, seam.bz);
+  take(x0, z0, alongX ? 2 : 1, alongX ? 1 : 2, '3004');
+
+  // Greedy-fill the leftover cells (1x1 always available, so this terminates).
+  const sizes: Array<[number, number, string]> = [
+    [2, 4, '3001'], [4, 2, '3001'], [2, 3, '3002'], [3, 2, '3002'], [2, 2, '3003'],
+    [1, 4, '3010'], [4, 1, '3010'], [1, 3, '3622'], [3, 1, '3622'], [1, 2, '3004'], [2, 1, '3004'],
+    [1, 1, '3005'],
+  ];
+  while (cells.size > 0) {
+    const [cx, cz] = [...cells][0].split(',').map(Number);
+    for (const [sx, sz, partId] of sizes) {
+      let ok = true;
+      for (let dx = 0; dx < sx && ok; dx++) {
+        for (let dz = 0; dz < sz && ok; dz++) {
+          if (!cells.has(`${cx + dx},${cz + dz}`)) ok = false;
+        }
+      }
+      if (ok) {
+        take(cx, cz, sx, sz, partId);
+        break;
+      }
+    }
+  }
+  return out;
 }
 
 /**

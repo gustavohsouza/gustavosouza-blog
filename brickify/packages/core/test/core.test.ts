@@ -273,6 +273,37 @@ describe('voxelize + legolize', () => {
     expect(count).toBe(grid.data.reduce((s: number, v) => s + v, 0));
   });
 
+  it('stitching connects woven patches created by color boundaries (hollow colored cube)', () => {
+    const positions = cubeTriangles(8);
+    const nTris = positions.length / 9;
+    const colors = new Float32Array(nTris * 3);
+    for (let t = 0; t < nTris; t++) {
+      const cx = (positions[t * 9] + positions[t * 9 + 3] + positions[t * 9 + 6]) / 3;
+      colors.set(cx < 4 ? [201, 26, 9] : [0, 85, 191], t * 3);
+    }
+    let grid = voxelize(positions, { targetStuds: 32, colors });
+    grid = hollow(grid, 2);
+    const res = legolize(grid, { profile: 'standard', colorId: 'white', autoConnect: true, palette: PALETTE });
+    expect(res.components).toBe(1);
+    expect(res.warnings).toHaveLength(0);
+    // Exact coverage must survive support columns + stitching.
+    const covered = new Uint8Array(grid.nx * grid.ny * grid.nz);
+    const idx = (x: number, y: number, z: number) => x + z * grid.nx + y * grid.nx * grid.nz;
+    for (const p of res.placements) {
+      for (let dz = 0; dz < p.sz; dz++) {
+        for (let dx = 0; dx < p.sx; dx++) {
+          const i = idx(p.x + dx, p.layer, p.z + dz);
+          expect(covered[i]).toBe(0);
+          covered[i] = 1;
+        }
+      }
+    }
+    for (let i = 0; i < grid.data.length; i++) {
+      // supports may add voxels beyond the original grid, never remove
+      if (grid.data[i] === 1) expect(covered[i]).toBe(1);
+    }
+  });
+
   it('autoConnect leaves ground-resting separate sections alone', () => {
     const grid = { nx: 8, ny: 2, nz: 2, data: new Uint8Array(8 * 2 * 2) };
     const idx = (x: number, y: number, z: number) => x + z * 8 + y * 8 * 2;
