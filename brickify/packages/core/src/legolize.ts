@@ -6,6 +6,11 @@ export interface LegolizeOptions {
   profile: PieceProfile;
   /** Single color for the whole build (v2 MVP color mode). */
   colorId: string;
+  /**
+   * Drop vertical support columns to stud-connect floating sections to the
+   * rest of the build (standard MOC practice for hollow/curved shapes).
+   */
+  autoConnect?: boolean;
 }
 
 /**
@@ -18,6 +23,23 @@ export interface LegolizeOptions {
  * to each other and are reported as warnings.
  */
 export function legolize(grid: VoxelGrid, opts: LegolizeOptions): LegolizeResult {
+  if (opts.autoConnect) {
+    // Iteratively add support columns under floating sections until the
+    // build is connected (or no further progress is possible).
+    let current = grid;
+    for (let i = 0; i < 12; i++) {
+      const res = legolizeOnce(current, opts);
+      if (res.components <= 1) return res;
+      const next = addSupports(current, res.placements);
+      if (!next) return res; // no progress possible; keep the warning
+      current = next;
+    }
+    return legolizeOnce(current, opts);
+  }
+  return legolizeOnce(grid, opts);
+}
+
+function legolizeOnce(grid: VoxelGrid, opts: LegolizeOptions): LegolizeResult {
   const { nx, ny, nz, data } = grid;
   const bricks = bricksForProfile(opts.profile);
 
@@ -93,7 +115,54 @@ function fits(
 
 /** Union-find over bricks; an edge = stud connection between vertically adjacent overlapping bricks. */
 function countComponents(placements: Placement3D[]): number {
-  if (placements.length === 0) return 0;
+  const labels = componentLabels(placements);
+  return new Set(labels).size;
+}
+
+/**
+ * Add 1x1 support columns under floating components so they stud-connect to
+ * whatever is beneath them. Returns null when nothing could be added
+ * (every loose component already rests on the ground plane).
+ */
+function addSupports(grid: VoxelGrid, placements: Placement3D[]): VoxelGrid | null {
+  const labels = componentLabels(placements);
+  const byComp = new Map<number, Placement3D[]>();
+  placements.forEach((p, i) => {
+    const list = byComp.get(labels[i]) ?? [];
+    list.push(p);
+    byComp.set(labels[i], list);
+  });
+  let main = -1;
+  let mainSize = -1;
+  for (const [root, list] of byComp) {
+    if (list.length > mainSize) {
+      mainSize = list.length;
+      main = root;
+    }
+  }
+
+  const { nx, ny, nz } = grid;
+  const data = new Uint8Array(grid.data);
+  const idx = (x: number, y: number, z: number) => x + z * nx + y * nx * nz;
+  let added = false;
+  for (const [root, list] of byComp) {
+    if (root === main) continue;
+    const lowest = list.reduce((a, b) => (b.layer < a.layer ? b : a));
+    if (lowest.layer === 0) continue; // already rests on the ground plane
+    const x = lowest.x + Math.floor(lowest.sx / 2);
+    const z = lowest.z + Math.floor(lowest.sz / 2);
+    for (let y = lowest.layer - 1; y >= 0; y--) {
+      const i = idx(x, y, z);
+      if (data[i] === 1) break; // reached existing structure
+      data[i] = 1;
+      added = true;
+    }
+  }
+  return added ? { nx, ny, nz, data } : null;
+}
+
+function componentLabels(placements: Placement3D[]): number[] {
+  if (placements.length === 0) return [];
   const parent = placements.map((_, i) => i);
   const find = (a: number): number => (parent[a] === a ? a : (parent[a] = find(parent[a])));
   const union = (a: number, b: number) => {
@@ -118,7 +187,5 @@ function countComponents(placements: Placement3D[]): number {
       }
     }
   }
-  const roots = new Set<number>();
-  for (let i = 0; i < placements.length; i++) roots.add(find(i));
-  return roots.size;
+  return placements.map((_, i) => find(i));
 }

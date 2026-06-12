@@ -227,6 +227,27 @@ describe('voxelize + legolize', () => {
     expect(res.components).toBe(2);
     expect(res.warnings.length).toBeGreaterThan(0);
   });
+
+  it('autoConnect bridges floating sections with support columns', () => {
+    // 1x1 column world: solid at layer 0 and layer 3, gap between.
+    const grid = { nx: 1, ny: 4, nz: 1, data: new Uint8Array([1, 0, 0, 1]) };
+    const plain = legolize(grid, { profile: 'basic', colorId: 'red' });
+    expect(plain.components).toBe(2);
+    const connected = legolize(grid, { profile: 'basic', colorId: 'red', autoConnect: true });
+    expect(connected.components).toBe(1);
+    expect(connected.warnings).toHaveLength(0);
+    expect(connected.bom.totalPieces).toBe(4); // two support bricks added
+  });
+
+  it('autoConnect leaves ground-resting separate sections alone', () => {
+    const grid = { nx: 8, ny: 2, nz: 2, data: new Uint8Array(8 * 2 * 2) };
+    const idx = (x: number, y: number, z: number) => x + z * 8 + y * 8 * 2;
+    for (const x of [0, 1, 6, 7]) {
+      for (let y = 0; y < 2; y++) for (let z = 0; z < 2; z++) grid.data[idx(x, y, z)] = 1;
+    }
+    const res = legolize(grid, { profile: 'basic', colorId: 'blue', autoConnect: true });
+    expect(res.components).toBe(2); // both stand on the ground; nothing to bridge
+  });
 });
 
 describe('ldraw export', () => {
