@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@brickify/core": ["../../packages/core/src/index.ts"],
+      "@brickify/brick3d": ["../../packages/brick3d/src/index.ts"]
+    }
+  },
+  "include": ["src", "../../packages/brick3d/src"]
+}

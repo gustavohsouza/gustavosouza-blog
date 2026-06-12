@@ -24,6 +24,16 @@ export async function loadMeshFile(file: File): Promise<Float32Array> {
   } else {
     throw new Error(`Unsupported format ".${ext}" — use STL, OBJ, GLB or GLTF`);
   }
+  return mergeToTriangles(geometries);
+}
+
+/** Parse raw GLB bytes (e.g. downloaded from a generation API) into a triangle soup. */
+export async function parseGlbBuffer(buffer: ArrayBuffer): Promise<Float32Array> {
+  const gltf = await new GLTFLoader().parseAsync(buffer, '');
+  return mergeToTriangles(collectGeometries(gltf.scene));
+}
+
+function mergeToTriangles(geometries: THREE.BufferGeometry[]): Float32Array {
   if (geometries.length === 0) throw new Error('No mesh found in file');
 
   const chunks: Float32Array[] = [];
