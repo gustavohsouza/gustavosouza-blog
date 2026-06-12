@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | Autor | Gustavo Souza (g@saasholic.com) |
-| Status | Rascunho — aguardando respostas das questões em aberto (§10) |
+| Status | Decisões principais tomadas em 2026-06-12 — ver §10 (restam poucas questões abertas) |
 | Data | 2026-06-12 |
 | Codinome provisório | **Brickify** (nome final em aberto — ver §10) |
 
@@ -65,16 +65,16 @@ plates maiores 1×2/2×2/2×4 da mesma cor para reduzir custo] → BOM → manua
 
 Decisões técnicas embutidas:
 
-- **Peça base do mosaico:** plate 1×1 (quadrada ou redonda, estilo LEGO Art) ou tile 1×1. Definir default e se é opção do usuário.
+- **Peça base do mosaico:** escolhida pelo usuário via **botões de toggle na UI** — plate 1×1 redonda (estilo LEGO Art) / plate 1×1 quadrada / tile 1×1 — com o preview refletindo a escolha. *(Decidido.)*
 - **Quantização no espaço CIELAB** (ΔE) e não RGB, para fidelidade perceptual.
 - **Paleta de cores:** derivada do catálogo de cores em produção (fonte: BrickLink/Rebrickable). Cores raras encarecem muito o set — a paleta default deve considerar disponibilidade e preço, não só existência da cor.
-- **Merge de peças:** mosaicos só de 1×1 são mais caros e tediosos; agrupar regiões da mesma cor em plates maiores reduz custo (~30–50% em áreas chapadas). Trade-off: manual mais complexo. Deve ser um toggle.
+- **Merge de peças:** mosaicos só de 1×1 são mais caros e tediosos; agrupar regiões da mesma cor em plates maiores reduz custo (~30–50% em áreas chapadas). Trade-off: manual mais complexo. **Ligado por padrão** (toggle para desligar). *(Decidido.)* Obs.: só se aplica aos modos plate; no modo tile não há merge (tiles maiores mudam o visual da grade).
 
 ### 3.3 Entregáveis da conversão
 
 1. **Visualização final** (render do mosaico, comparação lado a lado com a original).
 2. **BOM:** tabela peça × cor × quantidade, com preço estimado por item e total.
-3. **Arquivo de compra:** Wanted List XML do BrickLink (upload direto no site), e/ou CSV para Rebrickable/BrickOwl, e/ou link para LEGO Pick a Brick. *(Decisão pendente — ver §10.)*
+3. **Arquivo de compra:** lista de compras orientada a **peças compatíveis de fornecedores chineses** (Gobricks e similares, via AliExpress e afins), priorizando lojas com frete grátis ou mais barato — ver §7.1. Export secundário: Wanted List XML do BrickLink (para quem preferir peças originais).
 4. **Manual PDF:** mosaico dividido em seções (ex.: blocos de 16×16, como nos sets LEGO Art), cada seção com grade numerada cor a cor; capa com a arte final; lista de peças por seção.
 
 ### 3.4 Requisitos não funcionais (v1)
@@ -140,7 +140,7 @@ Adicionalmente, em qualquer perfil:
 
 - Ordenação por camadas (bottom-up), com agrupamento em **submodelos** quando o modelo for grande.
 - Cada passo: render isométrico do estado atual + peças adicionadas destacadas + callout das peças do passo (estilo manual oficial).
-- Geração via pipeline LDraw → LPub3D (headless) **ou** renderizador próprio (three.js + biblioteca de geometria LDraw). *(Decisão pendente — ver §10.)*
+- Geração via **renderizador próprio (three.js + biblioteca de geometria LDraw)** *(decidido)* — coerente com a arquitetura 100% navegador/local; LPub3D é aplicação desktop C++ e não se encaixa. Bônus: o mesmo renderizador serve visualização interativa dos passos na web **e** export PDF.
 - Validação de montabilidade: nenhum passo pode exigir inserir peça em local fisicamente inacessível (colisão de mão/peça) — na v2, heurística simples (montagem estritamente por camadas evita a maior parte dos casos).
 
 ### 4.5 Fora de escopo da v2
@@ -163,7 +163,7 @@ pipeline v2 (voxelização → legolização → BOM → manual)
 
 ### 5.2 Decisões específicas
 
-- **Modelo de geração 3D:** auto-hospedado open source (ex.: família TripoSR/TRELLIS/Hunyuan3D — exige GPU) vs. API de terceiros (ex.: Meshy, Tripo3D — custo por geração, sem infra GPU). *(Decisão pendente — ver §10; recomendação: API de terceiros na v3, reavaliar custo na v4.)*
+- **Modelo de geração 3D** *(direção decidida: custo mínimo)*: preferir modelo **open source rodando na máquina do usuário** (ex.: TripoSR/TRELLIS — exigem GPU modesta), alinhado à arquitetura local-first. Fallback: API de terceiros pay-per-use (ex.: Meshy/Tripo3D, há tiers gratuitos) **limitada ao teto de US$ 10/mês**, com contador de uso na aplicação.
 - **Etapa de revisão humana é obrigatória:** geração 3D por IA erra com frequência; o usuário precisa aprovar/regenerar a malha antes de gastar tempo no pipeline de legolização.
 - **Múltiplas vistas:** aceitar 1 foto (mais fácil, menos fiel) e opcionalmente 2–4 vistas para melhorar a reconstrução.
 
@@ -203,16 +203,30 @@ Não é escopo de implementação agora, mas as versões anteriores devem ser co
 │ Serviços de dados                                   │
 │ • Catálogo de peças/cores (Rebrickable dump,        │
 │   atualizado periodicamente)                        │
-│ • Preços (BrickLink Price Guide API, cache diário)  │
-│ • (v3) API de geração image-to-3D                   │
+│ • Tabela de preços estática (peças compatíveis,     │
+│   ver §7.1) + export BrickLink como alternativa     │
+│ • (v3) geração image-to-3D (ver §10/A6)             │
 └─────────────────────────────────────────────────────┘
 ```
 
 Observações:
 
-- **v1 pode rodar 100% no navegador** (quantização e PDF são leves) — zero custo de servidor e deploy estático no Cloudflare (alinhado à infra que o autor já usa). A legolização da v2 provavelmente também roda no browser via WASM para modelos pequenos/médios; jobs grandes podem exigir backend.
-- **Catálogo de peças:** Rebrickable fornece dumps completos (peças, cores, relacionamentos) com licença permissiva — usar como base canônica, com IDs mapeados para BrickLink.
-- **Preços:** BrickLink Price Guide exige API key e tem rate limits; cachear agressivamente (preço médio por peça+cor, refresh diário).
+- **Execução local-first** *(decidido)*: a aplicação roda na máquina do usuário — web app estático servido localmente, com **todo o processamento no navegador** (quantização, PDF, e na v2 voxelização/legolização em WASM/workers para modelos médios). Custo de servidor: zero. O mesmo build estático pode ser publicado (Cloudflare Pages) na v4 sem mudança de arquitetura.
+- **Catálogo de peças:** Rebrickable fornece dumps completos (peças, cores, relacionamentos) com licença permissiva — usar como base canônica. Os IDs de design LEGO valem também para peças compatíveis (Gobricks etc. usam a mesma numeração/geometria).
+- **Stack** *(decidido)*: TypeScript em monorepo — `core/` (engine de conversão, biblioteca pura, sem UI) + `app/` (Vite + React + three.js para o preview 3D da v2). UI em **inglês**.
+- **Teto de custo de APIs: US$ 10/mês** *(decidido)* — restringe qualquer dependência de API paga; preferir dados estáticos cacheados e processamento local.
+
+### 7.1 Estratégia de compra e preços (peças compatíveis)
+
+*(Decidido: o catálogo de compra prioriza peças compatíveis de fornecedores chineses — Gobricks e similares via AliExpress e afins — otimizando por frete grátis/mais barato. Peças LEGO originais viram caminho secundário.)*
+
+- **Identificação das peças:** o BOM usa os design IDs padrão (os mesmos da LEGO), que os fabricantes compatíveis também usam — a lista funciona em qualquer fornecedor.
+- **Compra:** não existe API pública de preços/estoque para AliExpress. Abordagem:
+  1. **Export BrickLink Wanted List XML** — formato amplamente aceito, inclusive por lojas de peças compatíveis que montam pedidos a partir de listas (várias lojas Gobricks aceitam upload de lista de peças);
+  2. **Links de busca gerados** por peça+cor para AliExpress (e afins), agrupados por loja sugerida para consolidar frete;
+  3. **CSV simples** (part ID, cor, quantidade) para colar em formulários de pedido.
+- **Estimativa de preço:** tabela estática de preços por categoria de peça (peças compatíveis custam tipicamente US$ 0,005–0,03/peça), embarcada na aplicação e revisada manualmente de tempos em tempos — sem API paga, dentro do teto de US$ 10/mês. O preço mostrado é estimativa com aviso de variação; opcionalmente o usuário ajusta o preço médio por peça.
+- **Frete:** sem API, a otimização de frete é heurística — consolidar a compra no menor número de lojas e sinalizar o peso/quantidade total para o usuário comparar opções de envio.
 
 ---
 
@@ -234,47 +248,46 @@ Observações:
 | **Marca LEGO:** o produto não pode sugerir afiliação com a LEGO; "LEGO" é marca registrada | Alta (na v4) | Nome próprio + disclaimer "compatível com peças de montar"; revisar diretrizes de fair use da LEGO antes da v4 |
 | Peça/cor indisponível no mercado no momento da compra | Média | Índice de disponibilidade + substituição inteligente (§4.3) |
 | Modelos 3D estruturalmente instáveis (desmontam) | Alta (v2) | Legolização com análise de conectividade; cola como última instância documentada no manual |
-| Custo real do set muito acima da estimativa | Média | Preços com margem de segurança; aviso de volatilidade |
-| Custo de GPU/API na v3 | Média | Começar com API de terceiros pay-per-use; cota por usuário |
-| Dependência de APIs de terceiros (BrickLink) | Média | Cache local de preços; fallback para múltiplos marketplaces |
+| Custo real do set muito acima da estimativa (tabela de preços estática pode defasar) | Média | Margem de segurança na estimativa; aviso de variação; preço médio ajustável pelo usuário |
+| Qualidade/tolerância de peças compatíveis varia entre fabricantes | Baixa | Recomendar fabricantes consolidados (ex.: Gobricks) na UI |
+| Custo de GPU/API na v3 | Média | Geração local na GPU do usuário; API só como fallback com teto de US$ 10/mês |
 
 ---
 
-## 10. Questões em aberto (decisões necessárias antes de iniciar)
+## 10. Decisões e questões em aberto
 
-### Produto
+### 10.1 Decisões registradas (2026-06-12)
 
-1. **P1 — Peça do mosaico (v1):** default com plates 1×1 quadradas, redondas (estilo LEGO Art) ou tiles? Opção exposta ao usuário?
-2. **P2 — Otimização de custo no mosaico:** merge em plates maiores ligado por padrão, ou mosaico "puro" 1×1 por padrão?
-3. **P3 — Tamanhos suportados na v1:** quais presets (32×32 até 96×96? maior?) e há limite superior?
-4. **P4 — Formato de compra prioritário:** BrickLink Wanted List, Rebrickable CSV, LEGO Pick a Brick, ou todos? (Pick a Brick tem menos peças mas é "oficial"; BrickLink tem tudo mas exige conta e compra de múltiplos vendedores.)
-5. **P5 — Manual:** PDF para imprimir, visualização interativa na web, ou ambos? (Ambos dobra o esforço da v2.)
-6. **P6 — Nome do produto** e domínio (relevante já na v1 se for publicado no blog).
-7. **P7 — Idiomas:** só PT-BR, ou PT+EN desde o início? (Afeta v4 e o manual gerado.)
+| # | Questão | Decisão |
+|---|---|---|
+| P1 | Peça do mosaico (v1) | Escolha do usuário via botões de toggle: plate redonda / plate quadrada / tile |
+| P2 | Otimização de custo (merge) | **Ligada por padrão**, com toggle para desligar |
+| P3 | Tamanhos do mosaico | Presets 32×32, 48×48, 64×64, 96×96 + campo personalizado (limite prático 128×128 por performance/custo) *(decisão delegada)* |
+| P4 | Formato de compra | **Peças compatíveis de fornecedores chineses** (Gobricks e similares via AliExpress e afins), otimizando frete grátis/mais barato; export BrickLink XML como secundário — ver §7.1 |
+| P5 | Manual | v1: PDF imprimível. v2: visualização interativa na web + export PDF a partir do mesmo renderizador *(decisão delegada)* |
+| P7 | Idiomas | **Somente inglês** (UI e manuais) |
+| N1 | Monetização | **Sem monetização** |
+| N2 | Orçamento de APIs | **Teto de US$ 10/mês** — favorece dados estáticos e processamento local |
+| A1 | Onde roda | **Local-first**: aplicação roda na máquina do usuário, processamento 100% no navegador; mesmo build estático publicável na v4 |
+| A2 | Stack | TypeScript, monorepo `core/` + `app/` (Vite + React + three.js) *(decisão delegada)* |
+| A3 | Repositório | **Repositório próprio**, separado do blog |
+| A4 | Instruções 3D (v2) | **Renderizador próprio em three.js** + geometria LDraw (LPub3D descartado: app desktop, não cabe na arquitetura navegador) *(decisão delegada)* |
+| A5 | Formato canônico | **LDraw (.ldr)** como representação interna dos sets *(decisão delegada)* |
+| A6 | Geração 3D (v3) | Open source local (GPU do usuário) preferencial; API de terceiros como fallback dentro do teto de US$ 10/mês |
+| A7 | Hospedagem v4 | Build estático no Cloudflare Pages (gratuito) *(decisão delegada, coerente com A1)* |
+| A8 | Catálogo e preços | Rebrickable dumps (gratuitos) + tabela de preços estática de peças compatíveis (§7.1) — nenhuma API paga |
 
-### Negócio
+### 10.2 Ainda em aberto
 
-8. **N1 — Monetização na v4:** gratuito, freemium (X conversões grátis), afiliados de marketplaces de peças, ou venda do manual/set como produto? Afeta decisões de custo desde a v2.
-9. **N2 — Orçamento de infraestrutura:** existe teto mensal aceitável para APIs (preços BrickLink, geração 3D na v3) e eventual GPU?
-10. **N3 — Posição jurídica:** validar com advogado o uso do termo "LEGO" e a geração de instruções no estilo oficial antes da v4, ou aceitar o risco até lá?
-11. **N4 — Conteúdo gerado por usuários (v4):** sets criados são públicos por padrão (efeito rede, galeria) ou privados por padrão (privacidade)?
-
-### Arquitetura
-
-12. **A1 — Onde roda o processamento:** 100% client-side (browser/WASM — zero custo de servidor, limita tamanho dos modelos) vs. backend desde já (mais simples para jobs pesados, custo e infra). Recomendação: client-side na v1, decidir na v2 com benchmarks.
-13. **A2 — Stack do front-end:** alguma preferência (React/Svelte/Vue)? O blog atual é estático com Node — sem padrão estabelecido para apps.
-14. **A3 — Repositório:** este produto nasce em repo próprio ou dentro deste repo do blog? (Recomendação: repo próprio; este PRD pode migrar junto.)
-15. **A4 — Geração de instruções 3D (v2):** integrar LPub3D/ecossistema LDraw via pipeline headless (rápido de entregar, dependência pesada) ou renderizador próprio em three.js (mais controle, mais esforço)?
-16. **A5 — Formato canônico interno:** LDraw (.ldr) como representação dos sets (interoperável com todo o ecossistema) — confirmar, pois influencia tudo na v2+.
-17. **A6 — Geração 3D na v3:** API de terceiros (Meshy/Tripo — sem infra, custo por geração) vs. modelo open source auto-hospedado (TRELLIS/Hunyuan3D — exige GPU). Recomendação: API na v3.
-18. **A7 — Hospedagem v4:** manter ecossistema Cloudflare (Pages/Workers/R2/Queues, alinhado à infra atual do autor) ou outra nuvem por causa de GPU?
-19. **A8 — Fonte de catálogo e preços:** Rebrickable dumps + BrickLink Price Guide API (recomendado) — alguém precisa criar/fornecer as API keys.
+1. **P6 — Nome do produto:** "Brickify" segue como codinome; nome final e domínio podem ser decididos até a v4 (sem urgência: v1–v3 são locais).
+2. **N3 — Posição jurídica (v4):** sem monetização o risco cai bastante, mas antes de publicar (v4) ainda vale revisar o uso do termo "LEGO" na comunicação — usar "compatível com bricks de montar" e citar marcas só nominativamente.
+3. **N4 — UGC na v4:** sets públicos ou privados por padrão na galeria. Decidir quando a v4 entrar em planejamento.
 
 ---
 
 ## 11. Sequenciamento sugerido
 
-1. Responder §10 (mínimo: P1–P5, A1–A3).
+1. ~~Responder §10~~ — feito em 2026-06-12 (ver §10.1); criar o repositório próprio do produto (A3).
 2. **v1 (MVP):** mosaico no browser com BOM e PDF — valida o funil completo de ponta a ponta com o menor risco técnico.
 3. Compra e montagem real de um mosaico (teste da métrica v1).
 4. **v2:** voxelização + legolização básica (perfil "Básico") → depois perfis avançados e estabilidade.
